@@ -1,0 +1,92 @@
+name: Build iOS app
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          ls -d /Applications/Xcode*.app || true
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then XCODE=/Applications/Xcode.app; fi
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Generate Xcode project
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          xcodegen generate
+
+      - name: Build (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Glassboard.xcodeproj \
+            -scheme Glassboard \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            -quiet \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            2>&1 | tee build.log
+
+      - name: Show compile errors
+        if: failure()
+        run: |
+          echo "==== ERRORS ===="
+          grep -E "error:" build.log | sort -u | head -150 || true
+
+      - name: Sign ad hoc with entitlements and package .ipa
+        run: |
+          APP="build/Build/Products/Release-iphoneos/Glassboard.app"
+          GROUP=$(xcodebuild -project Glassboard.xcodeproj -target Glassboard -showBuildSettings 2>/dev/null | awk -F' = ' '/ APP_GROUP_ID = /{print $2; exit}')
+          echo "App Group: $GROUP"
+          cat > ent.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>com.apple.security.application-groups</key><array><string>$GROUP</string></array>
+          </dict></plist>
+          PLIST
+          sed -i '' 's/^          //' ent.plist
+          for EXT in "$APP"/PlugIns/*.appex; do
+            codesign --force --sign - --entitlements ent.plist "$EXT"
+          done
+          codesign --force --sign - --entitlements ent.plist "$APP"
+          codesign -d --entitlements - "$APP" || true
+          mkdir -p Payload && cp -R "$APP" Payload/
+          zip -qry Glassboard.ipa Payload
+          ls -la Glassboard.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Glassboard-ipa
+          path: Glassboard.ipa
+          retention-days: 30
+
+      - name: Publish as the "latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest Glassboard.ipa \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Latest build ($(date -u +%Y-%m-%d\ %H:%M) UTC)" \
+            --notes "Built from ${GITHUB_SHA::7} on ${GITHUB_REF_NAME}. Install Glassboard.ipa with Sideloadly or AltStore."

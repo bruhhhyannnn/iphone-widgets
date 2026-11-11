@@ -11,7 +11,7 @@ options:
 settings:
   base:
     # >>> Change these two to your own values (or set the team in Xcode later) <<<
-    BUNDLE_ID_PREFIX: com.example
+    BUNDLE_ID_PREFIX: io.github.bruhhhyannnn
     DEVELOPMENT_TEAM: ""
     # The App Group both the app and the widgets use to share settings.
     APP_GROUP_ID: group.$(BUNDLE_ID_PREFIX).glassboard
@@ -37,6 +37,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: App/Glassboard.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    scheme: {}
     dependencies:
       - target: GlassboardWidgets
         embed: true
