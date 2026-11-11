@@ -90,7 +90,7 @@ struct DaylightSettings: Codable, Equatable {
     var showStars: Bool = true
 }
 
-enum AgendaMode: String, Codable, CaseIterable, Identifiable {
+enum AgendaMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case next, week, sky
     var id: String { rawValue }
     var label: String {
