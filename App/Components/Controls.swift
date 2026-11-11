@@ -80,10 +80,17 @@ struct SettingRow<Control: View>: View {
                 control()
             }
         } else {
-            HStack(spacing: 12) {
-                titleView
-                Spacer(minLength: 8)
-                control()
+            // Side by side when it fits, otherwise the control drops under the title.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    titleView
+                    Spacer(minLength: 8)
+                    control()
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    titleView
+                    control()
+                }
             }
         }
     }
