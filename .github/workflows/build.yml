@@ -69,7 +69,12 @@ jobs:
             codesign --force --sign - --entitlements ent.plist "$EXT"
           done
           codesign --force --sign - --entitlements ent.plist "$APP"
-          codesign -d --entitlements - "$APP" || true
+          echo "--- Bundle check ---"
+          ls "$APP/PlugIns"
+          test -d "$APP/PlugIns/GlassboardWidgets.appex" || { echo "Widget extension missing!"; exit 1; }
+          codesign -d --entitlements - "$APP" 2>&1 | grep -q "$GROUP" || { echo "App entitlement missing!"; exit 1; }
+          codesign -d --entitlements - "$APP/PlugIns/GlassboardWidgets.appex" 2>&1 | grep -q "$GROUP" || { echo "Widget entitlement missing!"; exit 1; }
+          echo "App and widget extension both carry $GROUP"
           mkdir -p Payload && cp -R "$APP" Payload/
           zip -qry Glassboard.ipa Payload
           ls -la Glassboard.ipa
